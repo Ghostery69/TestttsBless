@@ -24,7 +24,6 @@ if (isset($_POST['import_services'])) {
             $_SESSION['demo_services'] = [];
             $i = 1;
             foreach ($apiServices as $s) {
-                // TENTATIVE DE RÉCUPÉRATION DE LA VRAIE DESCRIPTION
                 $realDesc = $s['description'] ?? "Démarrage : Instantané\nQualité : Réelle\nGarantie : 30 Jours";
                 
                 $_SESSION['demo_services'][] = [
@@ -32,22 +31,19 @@ if (isset($_POST['import_services'])) {
                     'provider_service_id' => $s['service'],
                     'name' => $s['name'],
                     'category' => $s['category'],
-                    'rate' => $s['rate'] * 1.20, // Marge auto 20%
+                    'rate' => $s['rate'] * 1.20,
                     'provider_rate' => $s['rate'],
                     'min' => $s['min'],
                     'max' => $s['max'],
-                    'description' => $realDesc // On utilise la vraie description ici
+                    'description' => $realDesc
                 ];
             }
         } else {
-            // Mode SQL : On vide et on remplit proprement
             $pdo->exec("TRUNCATE TABLE services");
             
             $stmt = $pdo->prepare("INSERT INTO services (provider_service_id, name, category, rate, provider_rate, min, max, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
             
             foreach ($apiServices as $s) {
-                // LOGIQUE INTELLIGENTE :
-                // On regarde si l'API nous donne une description. Sinon, on met un texte par défaut.
                 if (!empty($s['description'])) {
                     $desc = $s['description'];
                 } else {
@@ -58,11 +54,11 @@ if (isset($_POST['import_services'])) {
                     $s['service'], 
                     $s['name'], 
                     $s['category'], 
-                    $s['rate'] * 1.20, // Marge 20%
-                    $s['rate'],        // Coût d'achat
+                    $s['rate'] * 1.20,
+                    $s['rate'],
                     $s['min'], 
                     $s['max'],
-                    $desc              // La description correcte est insérée
+                    $desc
                 ]);
             }
         }
@@ -99,10 +95,14 @@ if (isset($_POST['update_service'])) {
 $balance = 0.00;
 $currency = 'USD';
 $services = [];
-$currentKey = '';
+$currentKey = '7dae069b89dbe60c67e0b0ea694faffddc41459231356eb882e75e2f38be7d27';
 
 if ($demoMode) {
-    $currentKey = $_SESSION['demo_api_key'] ?? '';
+    // Si aucune clé en session, on utilise la clé par défaut
+    if (empty($_SESSION['demo_api_key'])) {
+        $_SESSION['demo_api_key'] = $currentKey;
+    }
+    $currentKey = $_SESSION['demo_api_key'];
     $services = $_SESSION['demo_services'] ?? [];
     $balance = 50.00;
     if (!empty($currentKey)) {
@@ -114,7 +114,13 @@ if ($demoMode) {
     }
 } else {
     try {
-        $currentKey = $pdo->query("SELECT provider_api_key FROM settings LIMIT 1")->fetchColumn();
+        $storedKey = $pdo->query("SELECT provider_api_key FROM settings LIMIT 1")->fetchColumn();
+        // Si aucune clé en BDD, on insère la clé par défaut
+        if (empty($storedKey)) {
+            $pdo->prepare("UPDATE settings SET provider_api_key = ? WHERE id = 1")->execute([$currentKey]);
+        } else {
+            $currentKey = $storedKey;
+        }
         $services = $pdo->query("SELECT * FROM services")->fetchAll(PDO::FETCH_ASSOC);
         
         if (!empty($currentKey)) {
@@ -368,14 +374,12 @@ function getCatIcon($cat) {
         document.getElementById('edit_name').value = service.name;
         document.getElementById('edit_rate').value = service.rate;
         
-        // Coût fournisseur
         let cost = service.provider_rate ? parseFloat(service.provider_rate) : (service.rate * 0.66);
         document.getElementById('edit_cost').value = cost.toFixed(4);
         
-        // Description
         document.getElementById('edit_desc').value = service.description || '';
         
-        calcProfit(); // Lance le calcul immédiatement
+        calcProfit();
         document.getElementById('editModal').classList.add('active');
     }
 
